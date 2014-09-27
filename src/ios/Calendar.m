@@ -153,11 +153,22 @@
     return [self isAllDayFromStartTime:startTime andEndTime:endTime];
 }
 
+- (EKCalendar*)calendarWithId:(NSString*)calendarId {
+    NSArray *calendars = [self.eventStore calendarsForEntityType:EKEntityTypeEvent];
+    for(EKCalendar *calendar in calendars) {
+        if([calendar.calendarIdentifier isEqualToString:calendarId])
+            return calendar;
+    }
+    return nil;
+}
+
 - (NSArray*)calendarsFromIds:(NSArray*)calendarIds {
+    
     NSMutableArray *calendars = [NSMutableArray arrayWithCapacity:[calendarIds count]];
     for(NSString *calendarId in calendarIds) {
-        EKCalendar *c = [self.eventStore calendarWithIdentifier:calendarId];
-        [calendars addObject:c];
+        EKCalendar *calendar = [self calendarWithId:calendarId];
+        if(calendar)
+            [calendars addObject:calendar];
     }
     return calendars;
 }
@@ -733,9 +744,6 @@
     
 
 }
-
-
-
 
 
 @end
