@@ -9,29 +9,23 @@
 
 - (void)initEventStoreWithCalendarCapabilities;
 
--(NSArray*)findEKEventsWithTitle: (NSString *)title
-                        location: (NSString *)location
-                           notes: (NSString *)notes
-                       startDate: (NSDate *)startDate
-                         endDate: (NSDate *)endDate
-                        calendar: (EKCalendar *) calendar;
-
-- (void)createCalendar:(CDVInvokedUrlCommand*)command;
-- (void)deleteCalendar:(CDVInvokedUrlCommand*)command;
-
-- (void)createEventWithOptions:(CDVInvokedUrlCommand*)command;
-- (void)createEventInteractively:(CDVInvokedUrlCommand*)command;
-- (void)createEventInNamedCalendar:(CDVInvokedUrlCommand*)command;
-
-- (void)modifyEvent:(CDVInvokedUrlCommand*)command;
-- (void)modifyEventInNamedCalendar:(CDVInvokedUrlCommand*)command;
-
-- (void)findEvents:(CDVInvokedUrlCommand*)command;
-- (void)findAllEventsInNamedCalendar:(CDVInvokedUrlCommand*)command;
-
 - (void)listCalendars:(CDVInvokedUrlCommand*)command;
 
+- (void)getCalendarWithId:(CDVInvokedUrlCommand*)command;
+
+- (void)saveCalendar:(CDVInvokedUrlCommand*)command;
+- (void)deleteCalendarWithId:(CDVInvokedUrlCommand*)command;
+
+- (void)listEvents:(CDVInvokedUrlCommand*)command;
+
+- (void)getEventWithId:(CDVInvokedUrlCommand*)command;
+
+- (void)saveEvent:(CDVInvokedUrlCommand*)command;
+- (void)deleteEventWithId:(CDVInvokedUrlCommand*)command;
+
+- (void)findMatchingEvents:(CDVInvokedUrlCommand*)command;
+
 - (void)deleteMatchingEvents:(CDVInvokedUrlCommand*)command;
-- (void)deleteEventFromNamedCalendar:(CDVInvokedUrlCommand*)command;
+
 
 @end

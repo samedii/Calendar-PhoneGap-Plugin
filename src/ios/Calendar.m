@@ -71,36 +71,43 @@
     return webColor;
 }
 
-- (NSMutableArray*)reformatEvents:(NSArray*)matchingEvents {
+- (NSDictionary*)calendarToDict:(EKCalendar*)calendar {
+    return @{
+             @"name": [calendar title] ? [calendar title] : [NSNull null],
+             @"id": calendar.calendarIdentifier ? calendar.calendarIdentifier : [NSNull null],
+             //@"color": colorString,
+             @"allowsModify": [NSNumber numberWithBool:calendar.allowsContentModifications]
+             };
+}
+
+- (NSDictionary*)eventToDict:(EKEvent*)event {
+    NSTimeInterval start = [event.startDate timeIntervalSince1970]*1000; //Unix offset format
+    NSTimeInterval end = [event.endDate timeIntervalSince1970]*1000;
+    
+    //CGColorRef color = [event.calendar CGColor];
+    //NSString *colorString = [CIColor colorWithCGColor:color].stringRepresentation;
+    
+    return @{
+             @"title": event.title ? event.title : [NSNull null],
+             @"location": event.location ? event.location : [NSNull null],
+             @"notes": event.notes ? event.notes : [NSNull null],
+             @"startTime": [NSNumber numberWithDouble:start],
+             @"endTime": [NSNumber numberWithDouble:end],
+             @"allDay": [NSNumber numberWithBool: event.allDay],
+             @"id": event.eventIdentifier,
+             //@"alarms":
+             //@"recurrenceRules":
+             @"calendar": [self calendarToDict:event.calendar]
+             };
+}
+
+- (NSMutableArray*)eventsToDicts:(NSArray*)matchingEvents {
     
     NSMutableArray *finalResults = [[NSMutableArray alloc] initWithCapacity:matchingEvents.count];
     
     // Stringify the results - Cordova can't deal with Obj-C objects
     for (EKEvent * event in matchingEvents) {
-        
-        NSTimeInterval start = [event.startDate timeIntervalSince1970]*1000; //Unix offset format
-        NSTimeInterval end = [event.endDate timeIntervalSince1970]*1000;
-        
-        //CGColorRef color = [event.calendar CGColor];
-        //NSString *colorString = [CIColor colorWithCGColor:color].stringRepresentation;
-        
-        NSDictionary *entry = @{
-                                @"title": event.title ? event.title : [NSNull null],
-                                @"location": event.location ? event.location : [NSNull null],
-                                @"notes": event.notes ? event.notes : [NSNull null],
-                                @"startDate": [NSNumber numberWithDouble:start],
-                                @"endDate": [NSNumber numberWithDouble:end],
-                                @"allDay": [NSNumber numberWithBool: event.allDay],
-                                @"id": event.eventIdentifier,
-                                @"calendar": @{
-                                        @"name": [event.calendar title] ? [event.calendar title] : [NSNull null],
-                                        @"id": [event.calendar calendarIdentifier] ? [event.calendar calendarIdentifier] : [NSNull null],
-                                        //@"color": colorString,
-                                        @"allowsModify": [NSNumber numberWithBool:[event.calendar allowsContentModifications]]
-                                        }
-                                };
-        
-        [finalResults addObject:entry];
+        [finalResults addObject:[self eventToDict:event]];
     }
     
     return finalResults;
@@ -210,10 +217,13 @@
     return EKRecurrenceFrequencyDaily;
 }
 
+-(CDVPluginResult*)modifyCalendar:(EKCalendar*)calendar withOptions:(NSDictionary*)options {
+    //TODO: todo
+    return nil;
+}
+
 -(CDVPluginResult*)modifyEvent:(EKEvent*)event withOptions:(NSDictionary*)options {
     
-    CDVPluginResult *pluginResult;
-        
     if(event.calendar.allowsContentModifications) {
         
         event.title = [options objectForKey:@"title"] ? [options objectForKey:@"title"] : event.title;
@@ -233,25 +243,94 @@
             event.endDate = [NSDate dateWithTimeIntervalSince1970:end];
         }
         
+        
+        event.allDay = [self isAllDayFromStartTime:[startTime doubleValue] andEndTime:[endTime doubleValue]];
+        
+        
+        //TODO: This can probably be done better
+        
+        NSDictionary* calendarOptions = [options objectForKey:@"calendar"];
+        
+        NSString* calendarId = [calendarOptions objectForKey:@"calendarId"];
+        
+
+        if(![event.calendar.calendarIdentifier isEqualToString:calendarId]) {
+            
+            EKCalendar *calendar = event.calendar; //default
+            
+            NSString* calendarName = [calendarOptions objectForKey:@"calendarName"];
+            
+            if(calendarId) {
+                calendar = [self.eventStore calendarWithIdentifier:calendarId];
+                
+                if (calendar == nil) {
+                    return [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Could not find calendar id"];
+                }
+                
+            } else if(calendarName) {
+                calendar = [self findEKCalendar:calendarName];
+                
+                if (calendar == nil) {
+                    return [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Could not find calendar name"];
+                }
+                
+            }
+            
+            event.calendar = calendar;
+            
+        }
+        
+
+        //TODO: Make arrays of all this
+        
+        NSDictionary* alarms = [options objectForKey:@"alarms"];
+        NSNumber* firstReminderMinutes = [alarms objectForKey:@"firstReminderMinutes"];
+        NSNumber* secondReminderMinutes = [alarms objectForKey:@"secondReminderMinutes"];
+        
+        NSDictionary* recurrenceRules = [options objectForKey:@"recurrenceRules"];
+        NSString* recurrence = [recurrenceRules objectForKey:@"recurrence"];
+        NSString* recurrenceEndTime = [recurrenceRules objectForKey:@"recurrenceEndTime"];
+        
+        if (firstReminderMinutes && firstReminderMinutes != (id)[NSNull null]) {
+            EKAlarm *reminder = [EKAlarm alarmWithRelativeOffset:-1*firstReminderMinutes.intValue*60];
+            [event addAlarm:reminder];
+        }
+        
+        if (secondReminderMinutes && secondReminderMinutes != (id)[NSNull null]) {
+            EKAlarm *reminder = [EKAlarm alarmWithRelativeOffset:-1*secondReminderMinutes.intValue*60];
+            [event addAlarm:reminder];
+        }
+        
+        if (recurrence && recurrence != (id)[NSNull null]) {
+            EKRecurrenceRule *rule = [[EKRecurrenceRule alloc] initRecurrenceWithFrequency: [self toEKRecurrenceFrequency:recurrence]
+                                                                                  interval: 1
+                                                                                       end: nil];
+            if (recurrenceEndTime && recurrenceEndTime != nil) {
+                NSTimeInterval _recurrenceEndTimeInterval = [recurrenceEndTime doubleValue] / 1000; // strip millis
+                NSDate *myRecurrenceEndDate = [NSDate dateWithTimeIntervalSince1970:_recurrenceEndTimeInterval];
+                EKRecurrenceEnd *end = [EKRecurrenceEnd recurrenceEndWithEndDate:myRecurrenceEndDate];
+                rule.recurrenceEnd = end;
+            }
+            [event addRecurrenceRule:rule];
+        }
+        
         // Now save the new details back to the store
         NSError *error = nil;
         [self.eventStore saveEvent:event span:EKSpanThisEvent error:&error];
         
         // Check error code + return result
         if (error) {
-            pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:error.userInfo.description];
+            return [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:error.userInfo.description];
             
         } else {
-            pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+            return [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
             
         }
         
     }
     else {
-        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Calendar doesn't allow content modifications"];
+        return [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Calendar doesn't allow content modifications"];
     }
-        
-    return pluginResult;
 
 }
 
@@ -398,12 +477,8 @@
         // NSArray * calendars = [self.eventStore calendarsForEntityType:EKEntityTypeEvent];
         
         NSMutableArray *finalResults = [[NSMutableArray alloc] initWithCapacity:calendars.count];
-        for (EKCalendar *thisCalendar in calendars){
-            NSDictionary *entry = @{
-                                        @"id": thisCalendar.calendarIdentifier,
-                                        @"name": thisCalendar.title
-                                    };
-            [finalResults addObject:entry];
+        for (EKCalendar *calendar in calendars){
+            [finalResults addObject:[self calendarToDict:calendar]];
         }
         
         CDVPluginResult* result = [CDVPluginResult resultWithStatus: CDVCommandStatus_OK messageAsArray:finalResults];
@@ -412,19 +487,93 @@
     }];
 }
 
-- (void)createEventInNamedCalendar:(CDVInvokedUrlCommand*)command {
+-(void)getCalendarWithId:(CDVInvokedUrlCommand *)command {
+    
+    [self.commandDelegate runInBackground:^{
+    
+        NSString* calendarId = [command.arguments objectAtIndex:0];
+        
+        EKCalendar *calendar = [self.eventStore calendarWithIdentifier:calendarId];
+        
+        CDVPluginResult *result;
+        if(calendar) {
+            NSDictionary *calendarDict = [self calendarToDict:calendar];
+            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:calendarDict];
+        }
+        else {
+            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Couldn't get calendar with id"];
+        }
+        
+        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+    }];
+}
+
+-(void)saveCalendar:(CDVInvokedUrlCommand*)command {
     
     [self.commandDelegate runInBackground:^{
         
         NSDictionary* options = [command.arguments objectAtIndex:0];
         NSString* calendarName = [options objectForKey:@"calendarName"];
-        EKCalendar* calendar = [self findEKCalendar:calendarName];
+        NSString* hexColor = [options objectForKey:@"calendarColor"];
+        
+        CDVPluginResult *result;
+        
+        EKCalendar *cal = [self findEKCalendar:calendarName];
+        if (cal == nil) {
+            cal = [EKCalendar calendarWithEventStore:self.eventStore];
+            cal.title = calendarName;
+            if (hexColor != (id)[NSNull null]) {
+                UIColor *theColor = [self colorFromHexString:hexColor];
+                cal.CGColor = theColor.CGColor;
+            }
+            cal.source = [self findEKSource];
+            
+            // if the user did not allow permission to access the calendar, the error Object will be filled
+            NSError* error;
+            [self.eventStore saveCalendar:cal commit:YES error:&error];
+            if (error == nil) {
+                NSLog(@"created calendar: %@", cal.title);
+                result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+            } else {
+                NSLog(@"could not create calendar, error: %@", error.description);
+                result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Calendar could not be created. Is access to the Calendar blocked for this app?"];
+            }
+            
+        } else {
+            // ok, it already exists
+            result = [CDVPluginResult resultWithStatus: CDVCommandStatus_OK messageAsString:@"OK, Calendar already exists"];
+        }
+        
+        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+    }];
+    
+    
+    
+}
+
+-(void)deleteCalendarWithId:(CDVInvokedUrlCommand*)command {
+    
+    [self.commandDelegate runInBackground:^{
+        
+        NSString* calendarId = [command.arguments objectAtIndex:0];
+
+        EKCalendar *calendar = [self.eventStore calendarWithIdentifier:calendarId];
         
         CDVPluginResult *result;
         if (calendar == nil) {
-            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Could not find calendar"];
+            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_NO_RESULT];
         } else {
-            result = [self createEventWithOptions:options inCalendar:calendar];
+            
+            NSError *error;
+            [eventStore removeCalendar:calendar commit:YES error:&error];
+            
+            if (error) {
+                NSLog(@"Error in deleteCalendar: %@", error.localizedDescription);
+                result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:error.userInfo.description];
+            } else {
+                NSLog(@"Deleted calendar: %@", calendar.title);
+                result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+            }
         }
         
         [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
@@ -433,10 +582,11 @@
     
 }
 
-- (void)listEventsInRange:(CDVInvokedUrlCommand*)command {
 
+- (void)listEvents:(CDVInvokedUrlCommand*)command {
+    
     [self.commandDelegate runInBackground:^{
-
+        
         NSDictionary* options = [command.arguments objectAtIndex:0];
         
         NSNumber* startTime  = [options objectForKey:@"startTime"];
@@ -470,129 +620,50 @@
         
         NSArray *events = [self.eventStore eventsMatchingPredicate:predicate];
         
-        NSArray *formattedEvents = [self reformatEvents:events];
+        NSArray *formattedEvents = [self eventsToDicts:events];
         
         CDVPluginResult* result = [CDVPluginResult resultWithStatus: CDVCommandStatus_OK messageAsArray:formattedEvents];
-
+        
         // The sendPluginResult method is thread-safe.
         [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
     }];
-
-}
-
-- (void)createEventWithOptions:(CDVInvokedUrlCommand*)command {
-
-    [self.commandDelegate runInBackground:^{
-
-        EKEvent *myEvent = [EKEvent eventWithEventStore: self.eventStore];
-
-        NSDictionary* options = [command.arguments objectAtIndex:0];
-        
-        //TODO: Move this stuff to "modify event" helper function
-        
-        NSNumber* startTime  = [options objectForKey:@"startTime"];
-        NSNumber* endTime    = [options objectForKey:@"endTime"];
-        
-        myEvent.allDay = [self isAllDayFromStartTime:[startTime doubleValue] andEndTime:[endTime doubleValue]];
-        
-        
-        NSDictionary* calOptions = [options objectForKey:@"options"];
-        NSNumber* firstReminderMinutes = [calOptions objectForKey:@"firstReminderMinutes"];
-        NSNumber* secondReminderMinutes = [calOptions objectForKey:@"secondReminderMinutes"];
-        NSString* recurrence = [calOptions objectForKey:@"recurrence"];
-        NSString* recurrenceEndTime = [calOptions objectForKey:@"recurrenceEndTime"];
-        NSString* calendarName = [calOptions objectForKey:@"calendarName"];
-        NSString* calendarId = [calOptions objectForKey:@"calendarId"];
-        
-       
-        
-        EKCalendar* calendar = nil;
-        if(calendarName) {
-            calendar = [self findEKCalendar:calendarName];
-            if (calendar == nil) {
-                CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Could not find calendar"];
-                [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-                return;
-            }
-
-        } else if(calendarId) {
-            
-            calendar = [self.eventStore calendarWithIdentifier:calendarId];
-            
-            if (calendar == nil) {
-                CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Could not find calendar id"];
-                [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-                return;
-            }
-            
-        } else {
-            calendar = self.eventStore.defaultCalendarForNewEvents;
-            if (calendar == nil) {
-                CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"No default calendar found. Is access to the Calendar blocked for this app?"];
-                [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-                return;
-            }
-        }
-        
-        myEvent.calendar = calendar;
-        
-        
-        if (firstReminderMinutes != (id)[NSNull null]) {
-            EKAlarm *reminder = [EKAlarm alarmWithRelativeOffset:-1*firstReminderMinutes.intValue*60];
-            [myEvent addAlarm:reminder];
-        }
-        
-        if (secondReminderMinutes != (id)[NSNull null]) {
-            EKAlarm *reminder = [EKAlarm alarmWithRelativeOffset:-1*secondReminderMinutes.intValue*60];
-            [myEvent addAlarm:reminder];
-        }
-        
-        if (recurrence != (id)[NSNull null]) {
-            EKRecurrenceRule *rule = [[EKRecurrenceRule alloc] initRecurrenceWithFrequency: [self toEKRecurrenceFrequency:recurrence]
-                                                                                  interval: 1
-                                                                                       end: nil];
-            if (recurrenceEndTime != nil) {
-                NSTimeInterval _recurrenceEndTimeInterval = [recurrenceEndTime doubleValue] / 1000; // strip millis
-                NSDate *myRecurrenceEndDate = [NSDate dateWithTimeIntervalSince1970:_recurrenceEndTimeInterval];
-                EKRecurrenceEnd *end = [EKRecurrenceEnd recurrenceEndWithEndDate:myRecurrenceEndDate];
-                rule.recurrenceEnd = end;
-            }
-            [myEvent addRecurrenceRule:rule];
-        }
-        
-        CDVPluginResult *pluginResult = [self modifyEvent:myEvent withOptions:options];
-
-        [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
-    }];
     
 }
 
-- (void)createEventInteractively:(CDVInvokedUrlCommand*)command {
-    CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Method not supported on iOS"];
-    [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-}
-
--(void)deleteEventFromNamedCalendar:(CDVInvokedUrlCommand*)command {
+-(void)getEventWithId:(CDVInvokedUrlCommand*)command {
     
     [self.commandDelegate runInBackground:^{
         
-        NSDictionary* options = [command.arguments objectAtIndex:0];
-        NSString* calendarName = [options objectForKey:@"calendarName"];
-        EKCalendar* calendar = [self findEKCalendar:calendarName];
+        NSString* eventIdentifier = [command.arguments objectAtIndex:0];
+        
+        EKEvent *event = [self.eventStore eventWithIdentifier:eventIdentifier];
         
         CDVPluginResult *result;
-        if (calendar == nil) {
-            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Could not find calendar"];
-            
+        if (result == nil) {
+            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"No default calendar found. Is access to the Calendar blocked for this app?"];
         } else {
-            result = [self findAndDeleteEventsWithOptions:options inCalendar:calendar];
+            NSDictionary *eventDict = [self eventToDict:event];
+            result = [CDVPluginResult resultWithStatus: CDVCommandStatus_OK messageAsDictionary:eventDict];
         }
         
         [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-        
     }];
     
+}
 
+- (void)saveEvent:(CDVInvokedUrlCommand*)command {
+    
+    [self.commandDelegate runInBackground:^{
+        
+        EKEvent *myEvent = [EKEvent eventWithEventStore: self.eventStore];
+        
+        NSDictionary* options = [command.arguments objectAtIndex:0];
+        
+        CDVPluginResult *pluginResult = [self modifyEvent:myEvent withOptions:options];
+        
+        [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+    }];
+    
 }
 
 -(void)deleteEventWithId:(CDVInvokedUrlCommand*)command {
@@ -617,6 +688,33 @@
     }];
 }
 
+-(void)findMatchingEvents:(CDVInvokedUrlCommand*)command {
+    
+    [self.commandDelegate runInBackground:^{
+        
+        EKCalendar* calendar = self.eventStore.defaultCalendarForNewEvents;
+        
+        CDVPluginResult* result;
+        
+        if (calendar == nil) {
+            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"No default calendar found. Is access to the Calendar blocked for this app?"];
+        } else {
+            
+            NSDictionary* options = [command.arguments objectAtIndex:0];
+            NSArray *matchingEvents = [self findEKEventsWithOptions:options andCalendar:calendar];
+            
+            NSMutableArray *finalResults = [self eventsToDicts:matchingEvents];
+            
+            result = [CDVPluginResult resultWithStatus: CDVCommandStatus_OK messageAsArray:finalResults];
+            
+        }
+        
+        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+    }];
+    
+    
+}
+
 -(void)deleteMatchingEvents:(CDVInvokedUrlCommand*)command {
     
     [self.commandDelegate runInBackground:^{
@@ -638,207 +736,5 @@
 
 }
 
-
--(void)modifyEventInNamedCalendar:(CDVInvokedUrlCommand*)command {
-    
-    [self.commandDelegate runInBackground:^{
-        
-        NSDictionary* options = [command.arguments objectAtIndex:0];
-        NSString* calendarName = [options objectForKey:@"calendarName"];
-        
-        EKCalendar* calendar = [self findEKCalendar:calendarName];
-        
-        CDVPluginResult *result;
-        if (calendar == nil) {
-            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Could not find calendar"];
-            
-        } else {
-            result = [self modifyEventWithOptions:options inCalendar:calendar];
-        }
-        
-        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-    }];
-
-}
-
-
--(void)saveEvent:(CDVInvokedUrlCommand*)command {
-
-    [self.commandDelegate runInBackground:^{
-        
-        NSDictionary* eventOptions = [command.arguments objectAtIndex:0];
-        
-        NSString *eventId = [eventOptions objectForKey:@"id"];
-        
-        
-        EKEvent *event;
-        if(eventId) {
-            event = [self.eventStore eventWithIdentifier:eventId];
-        }
-        else {
-            //Assume creating event
-            event = [EKEvent eventWithEventStore:self.eventStore];
-        }
-        
-        CDVPluginResult *result = [self modifyEvent:event withOptions:eventOptions];
-        
-        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-    }];
-    
-}
-
--(void)modifyEvent:(CDVInvokedUrlCommand*)command {
-    
-    [self.commandDelegate runInBackground:^{
-        
-        EKCalendar* calendar = self.eventStore.defaultCalendarForNewEvents;
-        
-        CDVPluginResult *result;
-        if (calendar == nil) {
-            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"No default calendar found. Is access to the Calendar blocked for this app?"];
-        } else {
-            
-            NSDictionary* options = [command.arguments objectAtIndex:0];
-            result = [self modifyEventWithOptions:options inCalendar:calendar];
-        }
-        
-        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-    }];
-    
-}
-
-
--(void)findAllEventsInNamedCalendar:(CDVInvokedUrlCommand*)command {
-
-    [self.commandDelegate runInBackground:^{
-
-        NSDictionary* options = [command.arguments objectAtIndex:0];
-        NSString* calendarName = [options objectForKey:@"calendarName"];
-        EKCalendar* calendar = [self findEKCalendar:calendarName];
-
-        CDVPluginResult* result;
-
-        if (calendar == nil) {
-            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Could not find calendar"];
-        } else {
-
-            NSDate* endDate =  [NSDate dateWithTimeIntervalSinceNow:[[NSDate distantFuture] timeIntervalSinceReferenceDate]];
-            NSArray *calendarArray = [NSArray arrayWithObject:calendar];
-            NSPredicate *fetchCalendarEvents = [eventStore predicateForEventsWithStartDate:[NSDate date] endDate:endDate calendars:calendarArray];
-            NSArray *matchingEvents = [eventStore eventsMatchingPredicate:fetchCalendarEvents];
-            
-            NSMutableArray *finalResults = [self reformatEvents:matchingEvents];
-            
-            result = [CDVPluginResult resultWithStatus: CDVCommandStatus_OK messageAsArray:finalResults];
-        }
-
-        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-    }];
-
-    
-}
-
-
--(void)findEvents:(CDVInvokedUrlCommand*)command {
-
-    [self.commandDelegate runInBackground:^{
-        
-        EKCalendar* calendar = self.eventStore.defaultCalendarForNewEvents;
-
-        CDVPluginResult* result;
-
-        if (calendar == nil) {
-            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"No default calendar found. Is access to the Calendar blocked for this app?"];
-        } else {
-            
-            NSDictionary* options = [command.arguments objectAtIndex:0];
-            NSArray *matchingEvents = [self findEKEventsWithOptions:options andCalendar:calendar];
-            
-            NSMutableArray *finalResults = [self reformatEvents:matchingEvents];
-            
-            result = [CDVPluginResult resultWithStatus: CDVCommandStatus_OK messageAsArray:finalResults];
-
-        }
-
-        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-    }];
-
-    
-}
-
-
--(void)createCalendar:(CDVInvokedUrlCommand*)command {
-
-    [self.commandDelegate runInBackground:^{
-
-        NSDictionary* options = [command.arguments objectAtIndex:0];
-        NSString* calendarName = [options objectForKey:@"calendarName"];
-        NSString* hexColor = [options objectForKey:@"calendarColor"];
-        
-        CDVPluginResult *result;
-
-        EKCalendar *cal = [self findEKCalendar:calendarName];
-        if (cal == nil) {
-            cal = [EKCalendar calendarWithEventStore:self.eventStore];
-            cal.title = calendarName;
-            if (hexColor != (id)[NSNull null]) {
-                UIColor *theColor = [self colorFromHexString:hexColor];
-                cal.CGColor = theColor.CGColor;
-            }
-            cal.source = [self findEKSource];
-            
-            // if the user did not allow permission to access the calendar, the error Object will be filled
-            NSError* error;
-            BOOL created = [self.eventStore saveCalendar:cal commit:YES error:&error];
-            if (error == nil) {
-                NSLog(@"created calendar: %@", cal.title);
-                result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
-            } else {
-                NSLog(@"could not create calendar, error: %@", error.description);
-                result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Calendar could not be created. Is access to the Calendar blocked for this app?"];
-            }
-            
-        } else {
-            // ok, it already exists
-            result = [CDVPluginResult resultWithStatus: CDVCommandStatus_OK messageAsString:@"OK, Calendar already exists"];
-        }
-
-        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-    }];
-
-
-    
-}
-
--(void)deleteCalendar:(CDVInvokedUrlCommand*)command {
-
-    [self.commandDelegate runInBackground:^{
-
-        NSDictionary* options = [command.arguments objectAtIndex:0];
-        NSString* calendarName = [options objectForKey:@"calendarName"];
-        
-        CDVPluginResult *result;
-
-        EKCalendar *thisCalendar = [self findEKCalendar:calendarName];
-        
-        if (thisCalendar == nil) {
-            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_NO_RESULT];
-        } else {
-            NSError *error;
-            [eventStore removeCalendar:thisCalendar commit:YES error:&error];
-            if (error) {
-                NSLog(@"Error in deleteCalendar: %@", error.localizedDescription);
-                result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:error.userInfo.description];
-            } else {
-                NSLog(@"Deleted calendar: %@", thisCalendar.title);
-                result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
-            }
-        }
-
-        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-    }];
-
-    
-}
 
 @end
