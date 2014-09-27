@@ -217,11 +217,6 @@
     return EKRecurrenceFrequencyDaily;
 }
 
--(CDVPluginResult*)modifyCalendar:(EKCalendar*)calendar withOptions:(NSDictionary*)options {
-    //TODO: todo
-    return nil;
-}
-
 -(CDVPluginResult*)modifyEvent:(EKEvent*)event withOptions:(NSDictionary*)options {
     
     if(event.calendar.allowsContentModifications) {
@@ -468,6 +463,8 @@
 
 #pragma mark Cordova functions
 
+#pragma mark Calendar
+
 - (void)listCalendars:(CDVInvokedUrlCommand*)command {
 
     [self.commandDelegate runInBackground:^{
@@ -582,6 +579,7 @@
     
 }
 
+#pragma mark Event
 
 - (void)listEvents:(CDVInvokedUrlCommand*)command {
     
@@ -735,6 +733,9 @@
     
 
 }
+
+
+
 
 
 @end
