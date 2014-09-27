@@ -26,12 +26,12 @@
 - (void)modifyEvent:(CDVInvokedUrlCommand*)command;
 - (void)modifyEventInNamedCalendar:(CDVInvokedUrlCommand*)command;
 
-- (void)findEvent:(CDVInvokedUrlCommand*)command;
+- (void)findEvents:(CDVInvokedUrlCommand*)command;
 - (void)findAllEventsInNamedCalendar:(CDVInvokedUrlCommand*)command;
 
 - (void)listCalendars:(CDVInvokedUrlCommand*)command;
 
-- (void)deleteEvent:(CDVInvokedUrlCommand*)command;
+- (void)deleteMatchingEvents:(CDVInvokedUrlCommand*)command;
 - (void)deleteEventFromNamedCalendar:(CDVInvokedUrlCommand*)command;
 
 @end
