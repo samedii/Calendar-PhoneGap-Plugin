@@ -52,13 +52,9 @@ createEventInteractively : function (options, successCallback, errorCallback) {
 
             deleteMatchingEvents: function(partialEvent, successCallback, errorCallback) {
                 cordova.exec(successCallback, errorCallback, "Calendar", "deleteMatchingEvents", [partialEvent]);
-            },
-
-            saveEvent: function(anEvent, successCallback, errorCallback) {
-                cordova.exec(successCallback, errorCallback, "Calendar", "saveEvent", [anEvent]);
             }
         };
-        
+
         return window.plugins.calendar;
     });
 
