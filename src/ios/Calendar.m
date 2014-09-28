@@ -6,6 +6,7 @@
 #define SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(v)  ([[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] != NSOrderedAscending)
 
 @implementation Calendar
+
 @synthesize eventStore;
 
 #pragma mark Initialisation functions
@@ -91,8 +92,8 @@
              @"title": event.title ? event.title : [NSNull null],
              @"location": event.location ? event.location : [NSNull null],
              @"notes": event.notes ? event.notes : [NSNull null],
-             @"startTime": [NSNumber numberWithDouble:start],
-             @"endTime": [NSNumber numberWithDouble:end],
+             @"startDate": [NSNumber numberWithDouble:start],
+             @"endDate": [NSNumber numberWithDouble:end],
              @"allDay": [NSNumber numberWithBool: event.allDay],
              @"id": event.eventIdentifier,
              //@"alarms":
@@ -125,19 +126,15 @@
     return [NSDate dateWithTimeIntervalSince1970:[offset doubleValue]/1000]; //remove ms
 }
 
-- (BOOL) isAllDayFromStartDate:(NSDate*)start toEndDate:(NSDate*)end {
-    return [self isAllDayFromStart:[self unixOffsetFromDate:start] toEnd:[self unixOffsetFromDate:end]];
+- (BOOL) isAllDayFromStartDate:(NSDate*)startDate toEndDate:(NSDate*)endDate {
+    return [self isAllDayFromStartDate:startDate toEndDate:endDate];
 }
 
-- (BOOL) isAllDayFromStart:(NSNumber*)start toEnd:(NSNumber*)end {
-
-    NSTimeInterval startTime = [start doubleValue];
-    NSTimeInterval endTime = [end doubleValue];
+- (BOOL) isAllDayFromStart:(NSDate*)startDate toEnd:(NSDate*)endDate {
+    int duration = [endDate timeIntervalSinceDate:startDate]/1000; //remove ms
+    const int daySeconds = 60*60*24;
     
-    int duration = endTime - startTime;
-    int moduloDay = duration % (60*60*24*1000);
-
-    return moduloDay == 0;
+    return duration % daySeconds == 0;
 }
 
 - (EKCalendar*)calendarWithId:(NSString*)calendarId {
@@ -177,13 +174,15 @@
 
 -(CDVPluginResult*)modifyEvent:(EKEvent*)event withOptions:(NSDictionary*)options {
     
+    //Event
+    
     event.title = [options objectForKey:@"title"] ? [options objectForKey:@"title"] : event.title;
     event.location = [options objectForKey:@"location"] ? [options objectForKey:@"location"] : event.location;
     event.notes = [options objectForKey:@"notes"] ? [options objectForKey:@"notes"] : event.notes;
     
     NSNumber
-        *start  = [options objectForKey:@"startTime"],
-        *end    = [options objectForKey:@"endTime"];
+        *start  = [options objectForKey:@"startDate"],
+        *end    = [options objectForKey:@"endDate"];
     
     NSDate
         *startDate = [self dateFromUnixOffset:start],
@@ -193,24 +192,22 @@
     event.endDate = endDate ? endDate : event.endDate;
     
     NSNumber *allDay = [options objectForKey:@"allDay"];
-    if(allDay)
+    if(allDay && ![[NSNull null] isEqual:allDay])
         event.allDay = [allDay boolValue];
     else
-        event.allDay = [self isAllDayFromStart:start toEnd:end];
+        event.allDay = [self isAllDayFromStart:startDate toEnd:endDate];
     
     
-    //TODO: This can probably be done better
+    //Calendar
     
     NSDictionary* calendarOptions = [options objectForKey:@"calendar"];
     
-    NSString* calendarId = [calendarOptions objectForKey:@"calendarId"];
-    
-    
+    NSString* calendarId = [calendarOptions objectForKey:@"id"];
     if(![event.calendar.calendarIdentifier isEqualToString:calendarId]) {
         
         EKCalendar *calendar;
         
-        NSString* calendarName = [calendarOptions objectForKey:@"calendarName"];
+        NSString* calendarName = [calendarOptions objectForKey:@"name"];
         
         if(calendarId) {
             calendar = [self.eventStore calendarWithIdentifier:calendarId];
@@ -244,7 +241,7 @@
     }
     
     
-    //TODO: Make arrays of all this
+    //TODO: Improve and make arrays of all this
     
     NSDictionary* alarms = [options objectForKey:@"alarms"];
     NSNumber* firstReminderMinutes = [alarms objectForKey:@"firstReminderMinutes"];
@@ -282,15 +279,10 @@
     [self.eventStore saveEvent:event span:EKSpanThisEvent error:&error];
     
     // Check error code + return result
-    if (error) {
+    if (error)
         return [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:error.userInfo.description];
-        
-    } else {
+    else
         return [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
-        
-    }
-    
-    
 
 }
 
@@ -351,8 +343,8 @@
     NSString* location   = [options objectForKey:@"location"];
     NSString* notes      = [options objectForKey:@"notes"];
     NSNumber
-        *start  = [options objectForKey:@"startTime"],
-        *end    = [options objectForKey:@"endTime"];
+        *start  = [options objectForKey:@"startDate"],
+        *end    = [options objectForKey:@"endDate"];
     
     NSDate
         *startDate = [self dateFromUnixOffset:start],
@@ -517,19 +509,22 @@
         NSDictionary* options = [command.arguments objectAtIndex:0];
         
         NSNumber
-            *start  = [options objectForKey:@"startTime"],
-            *end    = [options objectForKey:@"endTime"];
+            *start  = [options objectForKey:@"startDate"],
+            *end    = [options objectForKey:@"endDate"];
         
         NSArray* calendarIds  = [options objectForKey:@"calendarIds"];
         
         NSDate *startDate, *endDate;
         
         if(start && end && ![start isEqual:[NSNull null]] && ![end isEqual:[NSNull null]]) {
-            
             startDate = [self dateFromUnixOffset:start],
             endDate = [self dateFromUnixOffset:end];
+            
+            if(!startDate || !endDate)
+                NSLog(@"Warning: Couldn't read fromDate or toDate");
         }
-        else {
+        
+        if(!startDate || !endDate) {
             const double secondsInAYear = (60.0*60.0*24.0)*365.0;
             startDate = [NSDate dateWithTimeIntervalSinceNow:-2*secondsInAYear];
             endDate = [NSDate dateWithTimeIntervalSinceNow:2*secondsInAYear];
