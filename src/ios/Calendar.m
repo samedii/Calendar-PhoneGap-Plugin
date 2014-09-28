@@ -113,44 +113,31 @@
     return finalResults;
 }
 
-- (NSDictionary*)dateInfoFromStartNumber:(NSNumber*)startNumber andEndNumber:(NSNumber*)endNumber {
-    NSTimeInterval _startInterval = [startNumber doubleValue] / 1000; // strip millis
-    NSDate *startDate = [NSDate dateWithTimeIntervalSince1970:_startInterval];
-    
-    NSTimeInterval _endInterval = [endNumber doubleValue] / 1000; // strip millis
-    
-    NSDate *endDate;
-    BOOL allDay = [self isAllDayFromStartTime:[startNumber doubleValue] andEndTime:[endNumber doubleValue]];
-
-    if (allDay) {
-        endDate = [NSDate dateWithTimeIntervalSince1970:_endInterval-1];
-    } else {
-        endDate = [NSDate dateWithTimeIntervalSince1970:_endInterval];
-    }
-    
-    return @{
-             @"startDate": startDate,
-             @"endDate": endDate,
-             @"allDay": [NSNumber numberWithBool:allDay]
-             };
+-(NSNumber*)unixOffsetFromDate:(NSDate*)date {
+    if(date == nil || [[NSNull null] isEqual:date])
+        return nil;
+    return [NSNumber numberWithDouble:[date timeIntervalSince1970]*1000]; //add ms
 }
 
-- (BOOL) isAllDayFromStartTime:(NSTimeInterval)startTime andEndTime:(NSTimeInterval)endTime {
+-(NSDate*)dateFromUnixOffset:(NSNumber*)offset {
+    if(offset == nil || [[NSNull null] isEqual:offset])
+        return nil;
+    return [NSDate dateWithTimeIntervalSince1970:[offset doubleValue]/1000]; //remove ms
+}
 
-    NSTimeInterval _startInterval = startTime / 1000; // strip millis
-    NSTimeInterval _endInterval = endTime / 1000; // strip millis
+- (BOOL) isAllDayFromStartDate:(NSDate*)start toEndDate:(NSDate*)end {
+    return [self isAllDayFromStart:[self unixOffsetFromDate:start] toEnd:[self unixOffsetFromDate:end]];
+}
+
+- (BOOL) isAllDayFromStart:(NSNumber*)start toEnd:(NSNumber*)end {
+
+    NSTimeInterval startTime = [start doubleValue];
+    NSTimeInterval endTime = [end doubleValue];
     
-    int duration = _endInterval - _startInterval;
-    int moduloDay = duration % (60*60*24);
+    int duration = endTime - startTime;
+    int moduloDay = duration % (60*60*24*1000);
 
     return moduloDay == 0;
-}
-
-- (BOOL) isAllDayFromStartDate:(NSDate*)startDate andEndDate:(NSDate*)endDate {
-    NSTimeInterval startTime = [startDate timeIntervalSince1970]*1000;
-    NSTimeInterval endTime = [endDate timeIntervalSince1970]*1000;
-
-    return [self isAllDayFromStartTime:startTime andEndTime:endTime];
 }
 
 - (EKCalendar*)calendarWithId:(NSString*)calendarId {
@@ -195,20 +182,17 @@
     event.notes = [options objectForKey:@"notes"] ? [options objectForKey:@"notes"] : event.notes;
     
     NSNumber
-        *startTime  = [options objectForKey:@"startTime"],
-        *endTime    = [options objectForKey:@"endTime"];
+        *start  = [options objectForKey:@"startTime"],
+        *end    = [options objectForKey:@"endTime"];
     
-    if (startTime) {
-        NSTimeInterval start = [startTime doubleValue] / 1000; // strip millis
-        event.startDate = [NSDate dateWithTimeIntervalSince1970:start];
-    }
-    if (endTime) {
-        NSTimeInterval end = [endTime doubleValue] / 1000; // strip millis
-        event.endDate = [NSDate dateWithTimeIntervalSince1970:end];
-    }
+    NSDate
+        *startDate = [self dateFromUnixOffset:start],
+        *endDate = [self dateFromUnixOffset:end];
     
+    event.startDate = startDate ? startDate : event.startDate;
+    event.endDate = endDate ? endDate : event.endDate;
     
-    event.allDay = [self isAllDayFromStartTime:[startTime doubleValue] andEndTime:[endTime doubleValue]];
+    event.allDay = [self isAllDayFromStart:start toEnd:end];
     
     
     //TODO: This can probably be done better
@@ -362,13 +346,14 @@
     NSString* title      = [options objectForKey:@"title"];
     NSString* location   = [options objectForKey:@"location"];
     NSString* notes      = [options objectForKey:@"notes"];
-    NSNumber* startTime  = [options objectForKey:@"startTime"];
-    NSNumber* endTime    = [options objectForKey:@"endTime"];
+    NSNumber
+        *start  = [options objectForKey:@"startTime"],
+        *end    = [options objectForKey:@"endTime"];
     
-    NSDictionary *dateInfo = [self dateInfoFromStartNumber:startTime andEndNumber:endTime];
     NSDate
-        *startDate = [dateInfo objectForKey:@"startDate"],
-        *endDate = [dateInfo objectForKey:@"endDate"];
+        *startDate = [self dateFromUnixOffset:start],
+        *endDate = [self dateFromUnixOffset:end];
+    
     
     return [self findEKEventsWithTitle:title location:location notes:notes startDate:startDate endDate:endDate calendar:calendar];
 }
@@ -527,17 +512,18 @@
         
         NSDictionary* options = [command.arguments objectAtIndex:0];
         
-        NSNumber* startTime  = [options objectForKey:@"startTime"];
-        NSNumber* endTime    = [options objectForKey:@"endTime"];
+        NSNumber
+            *start  = [options objectForKey:@"startTime"],
+            *end    = [options objectForKey:@"endTime"];
+        
         NSArray* calendarIds  = [options objectForKey:@"calendarIds"];
         
         NSDate *startDate, *endDate;
         
-        if(startTime && endTime && ![startTime isEqual:[NSNull null]] && ![endTime isEqual:[NSNull null]]) {
-            NSDictionary *dateInfo = [self dateInfoFromStartNumber:startTime andEndNumber:endTime];
+        if(start && end && ![start isEqual:[NSNull null]] && ![end isEqual:[NSNull null]]) {
             
-            startDate = [dateInfo objectForKey:@"startDate"];
-            endDate = [dateInfo objectForKey:@"endDate"];
+            startDate = [self dateFromUnixOffset:start],
+            endDate = [self dateFromUnixOffset:end];
         }
         else {
             const double secondsInAYear = (60.0*60.0*24.0)*365.0;
