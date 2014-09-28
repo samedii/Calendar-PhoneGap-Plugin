@@ -563,11 +563,11 @@
         EKEvent *event = [self.eventStore eventWithIdentifier:eventIdentifier];
         
         CDVPluginResult *result;
-        if (result == nil) {
-            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"No default calendar found. Is access to the Calendar blocked for this app?"];
-        } else {
+        if (event) {
             NSDictionary *eventDict = [self eventToDict:event];
             result = [CDVPluginResult resultWithStatus: CDVCommandStatus_OK messageAsDictionary:eventDict];
+        } else {
+            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Couldn't get event with id"];
         }
         
         [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
