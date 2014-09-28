@@ -192,7 +192,11 @@
     event.startDate = startDate ? startDate : event.startDate;
     event.endDate = endDate ? endDate : event.endDate;
     
-    event.allDay = [self isAllDayFromStart:start toEnd:end];
+    NSNumber *allDay = [options objectForKey:@"allDay"];
+    if(allDay)
+        event.allDay = [allDay boolValue];
+    else
+        event.allDay = [self isAllDayFromStart:start toEnd:end];
     
     
     //TODO: This can probably be done better
