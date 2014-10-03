@@ -137,7 +137,7 @@
     return duration % daySeconds == 0;
 }
 
-- (EKCalendar*)calendarWithId:(NSString*)calendarId {
+- (EKCalendar*)calendarFromId:(NSString*)calendarId {
     //Using EventStore calendarWithIdentifier: causes a lot of errors to be fired (works though)
     NSArray *calendars = [self.eventStore calendarsForEntityType:EKEntityTypeEvent];
     for(EKCalendar *calendar in calendars) {
@@ -147,11 +147,16 @@
     return nil;
 }
 
-- (NSArray*)calendarsFromIds:(NSArray*)calendarIds {
+- (EKCalendar*)calendarFromDict:(NSDictionary*)calendarDict {
+    NSString *calendarId = [calendarDict objectForKey:@"id"];
+    return [self calendarFromId:calendarId];
+}
+
+- (NSArray*)calendarsFromDicts:(NSArray*)calendarDicts {
     
-    NSMutableArray *calendars = [NSMutableArray arrayWithCapacity:[calendarIds count]];
-    for(NSString *calendarId in calendarIds) {
-        EKCalendar *calendar = [self calendarWithId:calendarId];
+    NSMutableArray *calendars = [NSMutableArray arrayWithCapacity:[calendarDicts count]];
+    for(NSDictionary *calendarDict in calendarDicts) {
+        EKCalendar *calendar = [self calendarFromDict:calendarDict];
         if(calendar)
             [calendars addObject:calendar];
     }
@@ -181,12 +186,12 @@
     event.notes = [options objectForKey:@"notes"] ? [options objectForKey:@"notes"] : event.notes;
     
     NSNumber
-        *start  = [options objectForKey:@"startDate"],
-        *end    = [options objectForKey:@"endDate"];
+    *start  = [options objectForKey:@"startDate"],
+    *end    = [options objectForKey:@"endDate"];
     
     NSDate
-        *startDate = [self dateFromUnixOffset:start],
-        *endDate = [self dateFromUnixOffset:end];
+    *startDate = [self dateFromUnixOffset:start],
+    *endDate = [self dateFromUnixOffset:end];
     
     event.startDate = startDate ? startDate : event.startDate;
     event.endDate = endDate ? endDate : event.endDate;
@@ -283,13 +288,13 @@
         return [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:error.userInfo.description];
     else
         return [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
-
+    
 }
 
 
 - (CDVPluginResult*)findAndDeleteEventsWithOptions:(NSDictionary*)options
-                       inCalendar: (EKCalendar *) calendar {
-
+                                        inCalendar: (EKCalendar *) calendar {
+    
     NSArray *matchingEvents = [self findEKEventsWithOptions:options andCalendar:calendar];
     
     NSError *error = NULL;
@@ -338,17 +343,17 @@
 }
 
 -(NSArray*)findEKEventsWithOptions:(NSDictionary*)options andCalendar:(EKCalendar*)calendar {
-
+    
     NSString* title      = [options objectForKey:@"title"];
     NSString* location   = [options objectForKey:@"location"];
     NSString* notes      = [options objectForKey:@"notes"];
     NSNumber
-        *start  = [options objectForKey:@"startDate"],
-        *end    = [options objectForKey:@"endDate"];
+    *start  = [options objectForKey:@"startDate"],
+    *end    = [options objectForKey:@"endDate"];
     
     NSDate
-        *startDate = [self dateFromUnixOffset:start],
-        *endDate = [self dateFromUnixOffset:end];
+    *startDate = [self dateFromUnixOffset:start],
+    *endDate = [self dateFromUnixOffset:end];
     
     
     return [self findEKEventsWithTitle:title location:location notes:notes startDate:startDate endDate:endDate calendar:calendar];
@@ -387,9 +392,9 @@
 #pragma mark Calendar
 
 - (void)listCalendars:(CDVInvokedUrlCommand*)command {
-
+    
     [self.commandDelegate runInBackground:^{
-
+        
         NSArray *calendars = [self.eventStore calendarsForEntityType:EKEntityTypeEvent];
         // TODO when iOS 5 support is no longer needed, change the line above by the line below (and a few other places as well)
         // NSArray * calendars = [self.eventStore calendarsForEntityType:EKEntityTypeEvent];
@@ -400,7 +405,7 @@
         }
         
         CDVPluginResult* result = [CDVPluginResult resultWithStatus: CDVCommandStatus_OK messageAsArray:finalResults];
-
+        
         [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
     }];
 }
@@ -408,10 +413,10 @@
 -(void)getCalendarWithId:(CDVInvokedUrlCommand *)command {
     
     [self.commandDelegate runInBackground:^{
-    
+        
         NSString* calendarId = [command.arguments objectAtIndex:0];
         
-        EKCalendar *calendar = [self calendarWithId:calendarId];
+        EKCalendar *calendar = [self calendarFromId:calendarId];
         
         CDVPluginResult *result;
         if(calendar) {
@@ -474,7 +479,7 @@
     [self.commandDelegate runInBackground:^{
         
         NSString* calendarId = [command.arguments objectAtIndex:0];
-
+        
         EKCalendar *calendar = [self.eventStore calendarWithIdentifier:calendarId];
         
         CDVPluginResult *result;
@@ -509,10 +514,11 @@
         NSDictionary* options = [command.arguments objectAtIndex:0];
         
         NSNumber
-            *start  = [options objectForKey:@"startDate"],
-            *end    = [options objectForKey:@"endDate"];
+        *start  = [options objectForKey:@"startDate"],
+        *end    = [options objectForKey:@"endDate"];
         
-        NSArray* calendarIds  = [options objectForKey:@"calendarIds"];
+        NSArray* calendarsDicts  = [options objectForKey:@"calendars"];
+        
         
         NSDate *startDate, *endDate;
         
@@ -536,8 +542,8 @@
         
         
         NSArray *calendars;
-        if(calendarIds)
-            calendars = [self calendarsFromIds:calendarIds];
+        if(calendarsDicts && ![[NSNull null] isEqual:calendarsDicts])
+            calendars = [self calendarsFromDicts:calendarsDicts];
         
         NSPredicate *predicate = [self.eventStore predicateForEventsWithStartDate:startDate endDate:endDate calendars:calendars];
         
@@ -598,20 +604,20 @@
 -(void)deleteEventWithId:(CDVInvokedUrlCommand*)command {
     
     [self.commandDelegate runInBackground:^{
-
+        
         NSString* eventId = [command.arguments objectAtIndex:0];
         EKEvent *event = [self.eventStore eventWithIdentifier:eventId];
-    
+        
         NSError* error;
         [self.eventStore removeEvent:event span:EKSpanThisEvent error:&error];
-    
+        
         CDVPluginResult *result;
         if (error) {
             result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:error.userInfo.description];
         } else {
             result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
         }
-    
+        
         [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
         
     }];
@@ -662,7 +668,7 @@
         [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
     }];
     
-
+    
 }
 
 
