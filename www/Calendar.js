@@ -17,7 +17,7 @@
             },
 
             saveCalendar: function(calendar, successCallback, errorCallback) {
-                cordova.exec(successCallback, errorCallback, "Calendar", "saveCalendar", [calendar]);
+                cordova.exec(successCallback, errorCallback, "Calendar", "saveCalendar", calendar);
             },
 
             deleteCalendarWithId: function(calendarId, successCallback, errorCallback) {
@@ -25,7 +25,7 @@
             },
 
             listEvents: function(options, successCallback, errorCallback) {
-                cordova.exec(successCallback, errorCallback, "Calendar", "listEvents", [options]);
+                cordova.exec(successCallback, errorCallback, "Calendar", "listEvents", options);
             },
 
             getEventWithId: function(eventId, successCallback, errorCallback) {
@@ -39,7 +39,7 @@ createEventInteractively : function (options, successCallback, errorCallback) {
 };*/
 
             saveEvent: function(anEvent, successCallback, errorCallback) {
-                cordova.exec(successCallback, errorCallback, "Calendar", "saveEvent", [anEvent]);
+                cordova.exec(successCallback, errorCallback, "Calendar", "saveEvent", anEvent);
             },
 
             deleteEventWithId: function(eventId, successCallback, errorCallback) {
@@ -47,11 +47,11 @@ createEventInteractively : function (options, successCallback, errorCallback) {
             },
 
             findMatchingEvents: function(partialEvent, successCallback, errorCallback) {
-                cordova.exec(successCallback, errorCallback, "Calendar", "findMatchingEvents", [partialEvent]);
+                cordova.exec(successCallback, errorCallback, "Calendar", "findMatchingEvents", partialEvent);
             },
 
             deleteMatchingEvents: function(partialEvent, successCallback, errorCallback) {
-                cordova.exec(successCallback, errorCallback, "Calendar", "deleteMatchingEvents", [partialEvent]);
+                cordova.exec(successCallback, errorCallback, "Calendar", "deleteMatchingEvents", partialEvent);
             }
         };
 
