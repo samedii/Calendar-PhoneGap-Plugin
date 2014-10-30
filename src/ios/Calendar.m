@@ -320,16 +320,19 @@
                         calendar: (EKCalendar *) calendar {
     
     // Build up a predicateString - this means we only query a parameter if we actually had a value in it
-    NSMutableString *predicateString= [[NSMutableString alloc] initWithString:@""];
-    if (title != (id)[NSNull null] && title.length > 0) {
-        [predicateString appendString:[NSString stringWithFormat:@"title == '%@'", title]];
+    NSMutableArray *predicateStrings = [NSMutableArray arrayWithCapacity:3];
+    
+    if (![[NSNull null] isEqual:title] && title.length > 0) {
+        [predicateStrings addObject:[NSString stringWithFormat:@"title == '%@'", title]];
     }
-    if (location != (id)[NSNull null] && location.length > 0) {
-        [predicateString appendString:[NSString stringWithFormat:@" AND location == '%@'", location]];
+    if (![[NSNull null] isEqual:location] && location.length > 0) {
+        [predicateStrings addObject:[NSString stringWithFormat:@"location == '%@'", location]];
     }
-    if (notes != (id)[NSNull null] && notes.length > 0) {
-        [predicateString appendString:[NSString stringWithFormat:@" AND notes == '%@'", notes]];
+    if (![[NSNull null] isEqual:notes] && notes.length > 0) {
+        [predicateStrings addObject:[NSString stringWithFormat:@"notes == '%@'", notes]];
     }
+    
+    NSString *predicateString = [predicateStrings componentsJoinedByString:@" AND "];
     
     NSPredicate *matches = [NSPredicate predicateWithFormat:predicateString];
     
