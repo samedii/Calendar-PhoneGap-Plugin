@@ -1,6 +1,5 @@
-
 cordova.addConstructor(function installCalendarPlugin() {
-    "use strict";
+    'use strict';
 
     if (!window.plugins) {
         window.plugins = {};
@@ -8,45 +7,45 @@ cordova.addConstructor(function installCalendarPlugin() {
 
     window.plugins.calendar = {
         listCalendars: function(successCallback, errorCallback) {
-            cordova.exec(successCallback, errorCallback, "Calendar", "listCalendars", []);
+            cordova.exec(successCallback, errorCallback, 'Calendar', 'listCalendars', []);
         },
 
         getCalendarWithId: function(calendarId, successCallback, errorCallback) {
-            cordova.exec(successCallback, errorCallback, "Calendar", "getCalendarWithId", [calendarId]);
+            cordova.exec(successCallback, errorCallback, 'Calendar', 'getCalendarWithId', [calendarId]);
         },
 
         saveCalendar: function(calendar, successCallback, errorCallback) {
             cordova.exec(function() {
-                
-            }, errorCallback, "Calendar", "saveCalendar", [calendar]);
+
+            }, errorCallback, 'Calendar', 'saveCalendar', [calendar]);
         },
 
         deleteCalendarWithId: function(calendarId, successCallback, errorCallback) {
-            cordova.exec(successCallback, errorCallback, "Calendar", "deleteCalendarWithId", [calendarId]);
+            cordova.exec(successCallback, errorCallback, 'Calendar', 'deleteCalendarWithId', [calendarId]);
         },
 
         listEvents: function(options, successCallback, errorCallback) {
-            cordova.exec(successCallback, errorCallback, "Calendar", "listEvents", [options]);
+            cordova.exec(successCallback, errorCallback, 'Calendar', 'listEvents', [options]);
         },
 
         getEventWithId: function(eventId, successCallback, errorCallback) {
-            cordova.exec(successCallback, errorCallback, "Calendar", "getEventWithId", [eventId]);
+            cordova.exec(successCallback, errorCallback, 'Calendar', 'getEventWithId', [eventId]);
         },
 
         saveEvent: function(anEvent, successCallback, errorCallback) {
-            cordova.exec(successCallback, errorCallback, "Calendar", "saveEvent", [anEvent]);
+            cordova.exec(successCallback, errorCallback, 'Calendar', 'saveEvent', [anEvent]);
         },
 
         deleteEventWithId: function(eventId, successCallback, errorCallback) {
-            cordova.exec(successCallback, errorCallback, "Calendar", "deleteEventWithId", [eventId]);
+            cordova.exec(successCallback, errorCallback, 'Calendar', 'deleteEventWithId', [eventId]);
         },
 
         findMatchingEvents: function(partialEvent, successCallback, errorCallback) {
-            cordova.exec(successCallback, errorCallback, "Calendar", "findMatchingEvents", [partialEvent]);
+            cordova.exec(successCallback, errorCallback, 'Calendar', 'findMatchingEvents', [partialEvent]);
         },
 
         deleteMatchingEvents: function(partialEvent, successCallback, errorCallback) {
-            cordova.exec(successCallback, errorCallback, "Calendar", "deleteMatchingEvents", [partialEvent]);
+            cordova.exec(successCallback, errorCallback, 'Calendar', 'deleteMatchingEvents', [partialEvent]);
         }
     };
 
@@ -71,11 +70,10 @@ cordova.addConstructor(function installCalendarPlugin() {
     }
 
     cordova.exec(function eventStoreChanged() {
-        console.log('Event store changed callback');
-        triggerEvent(window.plugins.calendar,'eventStoreChanged');
+        triggerEvent(window.plugins.calendar, 'eventStoreChanged');
     }, function eventStoreChangedError() {
-        console.log('Event store changed callback error');
-    }, "Calendar", "setEventStoreChangedCallback", []);
+        console.log('Set eventStoreChanged callback error');
+    }, 'Calendar', 'setEventStoreChangedCallback', []);
 
     return window.plugins.calendar;
 });

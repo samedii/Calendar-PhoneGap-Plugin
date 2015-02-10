@@ -15,12 +15,6 @@ exports.defineAutoTests = function() {
     });
   });
 
-  describe('API functions', function () {
-    it("should define createEventWithOptions", function() {
-      expect(window.plugins.calendar.createEventWithOptions).toBeDefined();
-    });
-  });
-
   /*
   TODO extend - this is a copy-paste example of Toast
   describe('Invalid usage', function () {

@@ -393,11 +393,15 @@
 
 - (void)setEventStoreChangedCallback:(CDVInvokedUrlCommand*)command {
     eventStoreChangedCallbackId = command.callbackId;
+    
+    //Not necessary to do this
+    CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_NO_RESULT];
+    [result setKeepCallbackAsBool:YES];
+    [self.commandDelegate sendPluginResult:result callbackId:eventStoreChangedCallbackId];
 }
 
 - (void)eventStoreChanged:(NSNotification *)notification {
-    NSLog(@"Event store changed");
-    CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_NO_RESULT];
+    CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     [result setKeepCallbackAsBool:YES];
     [self.commandDelegate sendPluginResult:result callbackId:eventStoreChangedCallbackId];
 }
