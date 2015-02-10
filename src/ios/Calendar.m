@@ -7,7 +7,7 @@
 
 @implementation Calendar
 
-@synthesize eventStore;
+@synthesize eventStore, eventStoreChangedCallbackId;
 
 #pragma mark Initialisation functions
 
@@ -35,6 +35,8 @@
     
     if (accessGranted) {
         self.eventStore = eventStore;
+        
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(eventStoreChanged:) name:EKEventStoreChangedNotification object:nil];
     }
 }
 
@@ -320,19 +322,16 @@
                         calendar: (EKCalendar *) calendar {
     
     // Build up a predicateString - this means we only query a parameter if we actually had a value in it
-    NSMutableArray *predicateStrings = [NSMutableArray arrayWithCapacity:3];
-    
-    if (![[NSNull null] isEqual:title] && title.length > 0) {
-        [predicateStrings addObject:[NSString stringWithFormat:@"title == '%@'", title]];
+    NSMutableString *predicateString= [[NSMutableString alloc] initWithString:@""];
+    if (title != (id)[NSNull null] && title.length > 0) {
+        [predicateString appendString:[NSString stringWithFormat:@"title == '%@'", title]];
     }
-    if (![[NSNull null] isEqual:location] && location.length > 0) {
-        [predicateStrings addObject:[NSString stringWithFormat:@"location == '%@'", location]];
+    if (location != (id)[NSNull null] && location.length > 0) {
+        [predicateString appendString:[NSString stringWithFormat:@" AND location == '%@'", location]];
     }
-    if (![[NSNull null] isEqual:notes] && notes.length > 0) {
-        [predicateStrings addObject:[NSString stringWithFormat:@"notes == '%@'", notes]];
+    if (notes != (id)[NSNull null] && notes.length > 0) {
+        [predicateString appendString:[NSString stringWithFormat:@" AND notes == '%@'", notes]];
     }
-    
-    NSString *predicateString = [predicateStrings componentsJoinedByString:@" AND "];
     
     NSPredicate *matches = [NSPredicate predicateWithFormat:predicateString];
     
@@ -392,6 +391,17 @@
 
 #pragma mark Cordova functions
 
+- (void)setEventStoreChangedCallback:(CDVInvokedUrlCommand*)command {
+    eventStoreChangedCallbackId = command.callbackId;
+}
+
+- (void)eventStoreChanged:(NSNotification *)notification {
+    NSLog(@"Event store changed");
+    CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_NO_RESULT];
+    [result setKeepCallbackAsBool:YES];
+    [self.commandDelegate sendPluginResult:result callbackId:eventStoreChangedCallbackId];
+}
+
 #pragma mark Calendar
 
 - (void)listCalendars:(CDVInvokedUrlCommand*)command {
@@ -446,7 +456,8 @@
         
         EKCalendar *cal = [self findEKCalendar:calendarName];
         if (cal == nil) {
-            cal = [EKCalendar calendarWithEventStore:self.eventStore];
+            cal = [EKCalendar calendarForEntityType:EKEntityTypeEvent eventStore:self.eventStore];
+
             cal.title = calendarName;
             if (hexColor != (id)[NSNull null]) {
                 UIColor *theColor = [self colorFromHexString:hexColor];

@@ -5,7 +5,8 @@
 
 @interface Calendar : CDVPlugin
 
-@property (nonatomic, retain) EKEventStore* eventStore;
+@property (nonatomic, strong) EKEventStore* eventStore;
+@property (nonatomic, strong) NSString* eventStoreChangedCallbackId;
 
 - (void)initEventStoreWithCalendarCapabilities;
 
@@ -27,5 +28,6 @@
 
 - (void)deleteMatchingEvents:(CDVInvokedUrlCommand*)command;
 
+- (void)setEventStoreChangedCallback:(CDVInvokedUrlCommand*)command;
 
 @end
