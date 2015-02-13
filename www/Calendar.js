@@ -70,7 +70,7 @@ cordova.addConstructor(function installCalendarPlugin() {
     }
 
     cordova.exec(function eventStoreChanged() {
-        triggerEvent(window.plugins.calendar, 'eventStoreChanged');
+        triggerEvent(document, 'eventStoreChanged');
     }, function eventStoreChangedError() {
         console.log('Set eventStoreChanged callback error');
     }, 'Calendar', 'setEventStoreChangedCallback', []);
