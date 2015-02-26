@@ -289,7 +289,7 @@
     if (error)
         return [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:error.userInfo.description];
     else
-        return [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+        return [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:[self eventToDict:event]];
     
 }
 
@@ -407,7 +407,7 @@
 }
 
 - (void)refreshEventStore:(CDVInvokedUrlCommand*)command {
-    [eventStore refreshSourcesIfNecessary];
+    [self.eventStore refreshSourcesIfNecessary];
 
     CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_NO_RESULT];
     [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
@@ -481,7 +481,7 @@
             [self.eventStore saveCalendar:cal commit:YES error:&error];
             if (error == nil) {
                 NSLog(@"created calendar: %@", cal.title);
-                result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+                result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:[self calendarToDict:cal]];
             } else {
                 NSLog(@"could not create calendar, error: %@", error.description);
                 result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Calendar could not be created. Is access to the Calendar blocked for this app?"];
