@@ -406,6 +406,13 @@
     [self.commandDelegate sendPluginResult:result callbackId:eventStoreChangedCallbackId];
 }
 
+- (void)refreshEventStore:(CDVInvokedUrlCommand*)command {
+    [eventStore refreshSourcesIfNecessary];
+
+    CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_NO_RESULT];
+    [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+}
+
 #pragma mark Calendar
 
 - (void)listCalendars:(CDVInvokedUrlCommand*)command {

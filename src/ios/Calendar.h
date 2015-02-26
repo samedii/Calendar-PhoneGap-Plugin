@@ -30,4 +30,6 @@
 
 - (void)setEventStoreChangedCallback:(CDVInvokedUrlCommand*)command;
 
+- (void)refreshEventStore:(CDVInvokedUrlCommand*)command;
+
 @end
