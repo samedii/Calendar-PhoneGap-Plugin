@@ -68,7 +68,7 @@
         blue = roundf(components[2] * 255.0);
         
         // Convert with %02x (use 02 to always get two chars)
-        webColor = [[NSString alloc]initWithFormat:@"%02x%02x%02x", (int)red, (int)green, (int)blue];
+        webColor = [NSString stringWithFormat:@"#%02x%02x%02x", (int)red, (int)green, (int)blue];
     }
     
     return webColor;
@@ -78,7 +78,7 @@
     return @{
              @"name": [calendar title] ? [calendar title] : [NSNull null],
              @"id": calendar.calendarIdentifier ? calendar.calendarIdentifier : [NSNull null],
-             //@"color": colorString,
+             @"color": [Calendar hexFromColor:[UIColor colorWithCGColor:calendar.CGColor]],
              @"allowsModify": [NSNumber numberWithBool:calendar.allowsContentModifications]
              };
 }
