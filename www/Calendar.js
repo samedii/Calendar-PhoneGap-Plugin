@@ -48,7 +48,7 @@ cordova.addConstructor(function installCalendarPlugin() {
             cordova.exec(successCallback, errorCallback, 'Calendar', 'deleteMatchingEvents', [partialEvent]);
         },
 
-        refreshEventStore: function(partialEvent, successCallback, errorCallback) {
+        refreshEventStore: function(successCallback, errorCallback) {
             cordova.exec(successCallback, errorCallback, 'Calendar', 'refreshEventStore');
         }
     };

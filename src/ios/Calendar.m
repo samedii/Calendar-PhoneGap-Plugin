@@ -409,7 +409,7 @@
 - (void)refreshEventStore:(CDVInvokedUrlCommand*)command {
     [self.eventStore refreshSourcesIfNecessary];
 
-    CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_NO_RESULT];
+    CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"Refreshing if necessary..."];
     [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
 }
 
