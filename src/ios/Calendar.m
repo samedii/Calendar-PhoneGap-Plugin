@@ -42,53 +42,28 @@
 
 #pragma mark Helper Functions
 
-// Assumes input like "#00FF00" (#RRGGBB)
-- (UIColor *)colorFromHexString:(NSString *)hexString {
-    unsigned rgbValue = 0;
-    NSScanner *scanner = [NSScanner scannerWithString:hexString];
-    [scanner setScanLocation:1]; // bypass '#' character
-    [scanner scanHexInt:&rgbValue];
-    return [UIColor colorWithRed:((rgbValue & 0xFF0000) >> 16)/255.0 green:((rgbValue & 0xFF00) >> 8)/255.0 blue:(rgbValue & 0xFF)/255.0 alpha:1.0];
++ (NSDictionary*)dictFromCGColor:(CGColorRef)color {
+    const CGFloat *c = CGColorGetComponents(color);
+    return @{
+             @"r": [NSNumber numberWithFloat:c[0]],
+             @"g": [NSNumber numberWithFloat:c[1]],
+             @"b": [NSNumber numberWithFloat:c[2]],
+             @"a": [NSNumber numberWithFloat:CGColorGetAlpha(color)],
+             };
 }
 
-+ (NSString*)hexFromColor:(UIColor*)color {
-    NSString *webColor = nil;
-    
-    // This method only works for RGB colors
-    if (color &&
-        CGColorGetNumberOfComponents(color.CGColor) == 4)
-    {
-        // Get the red, green and blue components
-        const CGFloat *components = CGColorGetComponents(color.CGColor);
-        
-        // These components range from 0.0 till 1.0 and need to be converted to 0 till 255
-        CGFloat red, green, blue;
-        red = roundf(components[0] * 255.0);
-        green = roundf(components[1] * 255.0);
-        blue = roundf(components[2] * 255.0);
-        
-        // Convert with %02x (use 02 to always get two chars)
-        webColor = [NSString stringWithFormat:@"#%02x%02x%02x", (int)red, (int)green, (int)blue];
-    }
-    
-    return webColor;
-}
-
-- (NSDictionary*)calendarToDict:(EKCalendar*)calendar {
+- (NSDictionary*)dictFromCalendar:(EKCalendar*)calendar {
     return @{
              @"name": [calendar title] ? [calendar title] : [NSNull null],
              @"id": calendar.calendarIdentifier ? calendar.calendarIdentifier : [NSNull null],
-             @"color": [Calendar hexFromColor:[UIColor colorWithCGColor:calendar.CGColor]],
+             @"color": [Calendar dictFromCGColor:calendar.CGColor],
              @"allowsModify": [NSNumber numberWithBool:calendar.allowsContentModifications]
              };
 }
 
-- (NSDictionary*)eventToDict:(EKEvent*)event {
+- (NSDictionary*)dictFromEvent:(EKEvent*)event {
     NSTimeInterval start = [event.startDate timeIntervalSince1970]*1000; //Unix offset format
     NSTimeInterval end = [event.endDate timeIntervalSince1970]*1000;
-    
-    //CGColorRef color = [event.calendar CGColor];
-    //NSString *colorString = [CIColor colorWithCGColor:color].stringRepresentation;
     
     return @{
              @"title": event.title ? event.title : [NSNull null],
@@ -100,17 +75,17 @@
              @"id": event.eventIdentifier,
              //@"alarms":
              //@"recurrenceRules":
-             @"calendar": [self calendarToDict:event.calendar]
+             @"calendar": [self dictFromCalendar:event.calendar]
              };
 }
 
-- (NSMutableArray*)eventsToDicts:(NSArray*)matchingEvents {
+- (NSMutableArray*)dictsFromEvents:(NSArray*)matchingEvents {
     
     NSMutableArray *finalResults = [[NSMutableArray alloc] initWithCapacity:matchingEvents.count];
     
     // Stringify the results - Cordova can't deal with Obj-C objects
     for (EKEvent * event in matchingEvents) {
-        [finalResults addObject:[self eventToDict:event]];
+        [finalResults addObject:[self dictFromEvent:event]];
     }
     
     return finalResults;
@@ -289,7 +264,7 @@
     if (error)
         return [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:error.userInfo.description];
     else
-        return [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:[self eventToDict:event]];
+        return [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:[self dictFromEvent:event]];
     
 }
 
@@ -429,7 +404,7 @@
         
         NSMutableArray *finalResults = [[NSMutableArray alloc] initWithCapacity:calendars.count];
         for (EKCalendar *calendar in calendars){
-            [finalResults addObject:[self calendarToDict:calendar]];
+            [finalResults addObject:[self dictFromCalendar:calendar]];
         }
         
         CDVPluginResult* result = [CDVPluginResult resultWithStatus: CDVCommandStatus_OK messageAsArray:finalResults];
@@ -448,7 +423,7 @@
         
         CDVPluginResult *result;
         if(calendar) {
-            NSDictionary *calendarDict = [self calendarToDict:calendar];
+            NSDictionary *calendarDict = [self dictFromCalendar:calendar];
             result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:calendarDict];
         }
         else {
@@ -464,8 +439,8 @@
     [self.commandDelegate runInBackground:^{
         
         NSDictionary* options = [command.arguments objectAtIndex:0];
-        NSString* calendarName = [options objectForKey:@"calendarName"];
-        NSString* hexColor = [options objectForKey:@"calendarColor"];
+        NSString* calendarName = [options objectForKey:@"name"];
+        //NSString* hexColor = [options objectForKey:@"color"];
         
         CDVPluginResult *result;
         
@@ -474,10 +449,7 @@
             cal = [EKCalendar calendarForEntityType:EKEntityTypeEvent eventStore:self.eventStore];
 
             cal.title = calendarName;
-            if (hexColor != (id)[NSNull null]) {
-                UIColor *theColor = [self colorFromHexString:hexColor];
-                cal.CGColor = theColor.CGColor;
-            }
+
             cal.source = [self findEKSource];
             
             // if the user did not allow permission to access the calendar, the error Object will be filled
@@ -485,7 +457,7 @@
             [self.eventStore saveCalendar:cal commit:YES error:&error];
             if (error == nil) {
                 NSLog(@"created calendar: %@", cal.title);
-                result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:[self calendarToDict:cal]];
+                result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:[self dictFromCalendar:cal]];
             } else {
                 NSLog(@"could not create calendar, error: %@", error.description);
                 result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Calendar could not be created. Is access to the Calendar blocked for this app?"];
@@ -578,7 +550,7 @@
         
         NSArray *events = [self.eventStore eventsMatchingPredicate:predicate];
         
-        NSArray *formattedEvents = [self eventsToDicts:events];
+        NSArray *formattedEvents = [self dictsFromEvents:events];
         
         CDVPluginResult* result = [CDVPluginResult resultWithStatus: CDVCommandStatus_OK messageAsArray:formattedEvents];
         
@@ -598,7 +570,7 @@
         
         CDVPluginResult *result;
         if (event) {
-            NSDictionary *eventDict = [self eventToDict:event];
+            NSDictionary *eventDict = [self dictFromEvent:event];
             result = [CDVPluginResult resultWithStatus: CDVCommandStatus_OK messageAsDictionary:eventDict];
         } else {
             result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Couldn't get event with id"];
@@ -667,7 +639,7 @@
             NSDictionary* options = [command.arguments objectAtIndex:0];
             NSArray *matchingEvents = [self findEKEventsWithOptions:options andCalendar:calendar];
             
-            NSMutableArray *finalResults = [self eventsToDicts:matchingEvents];
+            NSMutableArray *finalResults = [self dictsFromEvents:matchingEvents];
             
             result = [CDVPluginResult resultWithStatus: CDVCommandStatus_OK messageAsArray:finalResults];
             
