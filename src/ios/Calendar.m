@@ -92,7 +92,7 @@ if (accessGranted) {
        @"id": event.eventIdentifier,
              //@"alarms":
              //@"recurrenceRules":
-       @"calendar": [self dictFromCalendar:event.calendar]
+       @"calendarId": event.calendar.calendarIdentifier ? event.calendar.calendarIdentifier : [NSNull null],
    };
 }
 
