@@ -92,7 +92,7 @@ if (accessGranted) {
        @"id": event.eventIdentifier,
              //@"alarms":
              //@"recurrenceRules":
-       @"calendar": [self dictFromCalendar:event.calendar]
+       @"calendarId": event.calendar.calendarIdentifier ? event.calendar.calendarIdentifier : [NSNull null],
    };
 }
 
@@ -180,50 +180,12 @@ if (accessGranted) {
         
         
         //Calendar
-        EKCalendar *calendar;
-        
-        NSDictionary* calendarDict = options[@"calendar"];
-        if(calendarDict) {
-
-            NSString* calendarId = calendarDict[@"id"];
-            
-            if(![event.calendar.calendarIdentifier isEqualToString:calendarId]) {
-                //Not same calendar as before
-
-                NSString* calendarName = calendarDict[@"name"];
-                
-                if(calendarId) {
-                    calendar = [self.eventStore calendarWithIdentifier:calendarId];
-                    
-                    if (calendar == nil) {
-                        return [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Could not find calendar id"];
-                    }
-                    
-                } else if(calendarName) {
-                    calendar = [self findEKCalendar:calendarName];
-                    
-                    if (calendar == nil) {
-                        return [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Could not find calendar name"];
-                    }
-                    
-                }
-                
-            }
-            
+        NSString* calendarId = options[@"calendarId"];
+        if(calendarId) {
+            event.calendar = [self.eventStore calendarWithIdentifier:calendarId];
+            if (event.calendar == nil)
+                return [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Could not find calendar id"];
         }
-        
-        if(calendar == nil) {
-            //Either if calendar dict was undefined or if neither id nor name was set
-
-            calendar = [self.eventStore defaultCalendarForNewEvents];
-            
-            if (calendar == nil) {
-                return [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"No default calendar found. Is access to the Calendar blocked for this app?"];
-            }
-        }
-        
-        event.calendar = calendar;
-        
         
         if(!event.calendar.allowsContentModifications) {
             return [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Calendar doesn't allow content modifications"];
@@ -540,24 +502,31 @@ if (accessGranted) {
 }
 
 - (void)saveEvent:(CDVInvokedUrlCommand*)command {
-
+    
     [self.commandDelegate runInBackground:^{
-
+        
         NSDictionary *eventDict = [command.arguments objectAtIndex:0];
         NSString *eventId = eventDict[@"id"];
-
-        EKEvent *event = [self.eventStore eventWithIdentifier:eventId];
-
-        if(!event) {
-                //Assume creating event
+        
+        CDVPluginResult *pluginResult;
+        EKEvent *event;
+        if(eventId) {
+            event = [self.eventStore eventWithIdentifier:eventId];
+        }
+        else {
+            //Assume creating event
+            NSLog(@"No event id, assuming creating event");
             event = [EKEvent eventWithEventStore:self.eventStore];
         }
-
-        CDVPluginResult *pluginResult = [self modifyEvent:event withPartialEventDict:eventDict];
-
+        
+        if(event)
+            pluginResult = [self modifyEvent:event withPartialEventDict:eventDict];
+        else
+            pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Couldn't get event with id"];
+        
         [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
     }];
-
+    
 }
 
 -(void)deleteEventWithId:(CDVInvokedUrlCommand*)command {
