@@ -11,12 +11,8 @@
 
 #pragma mark Initialisation functions
 
-- (CDVPlugin*) initWithWebView:(UIWebView*)theWebView {
-    self = (Calendar*)[super initWithWebView:theWebView];
-    if (self) {
-        [self initEventStoreWithCalendarCapabilities];
-    }
-    return self;
+- (void) pluginInitialize {
+    [self initEventStoreWithCalendarCapabilities];
 }
 
 - (void)initEventStoreWithCalendarCapabilities {
